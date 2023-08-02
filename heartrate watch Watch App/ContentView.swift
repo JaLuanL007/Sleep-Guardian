@@ -11,15 +11,15 @@ import HealthKit
 
 struct WelcomePage: View {
     
-        var body: some View {
-            VStack {
-                NavigationStack {
+    var body: some View {
+        VStack {
+            NavigationStack {
                 
                 VStack {
                     Image("SleepGuardian")
                         .imageScale(.large)
                         .foregroundColor(.purple)
-                 
+                    
                     Spacer()
                     Text("Welcome To Sleep Guardian")
                         .font(.custom(
@@ -29,26 +29,25 @@ struct WelcomePage: View {
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                 }
+                
+                
+                VStack {
+                    Spacer()
+                    NavigationLink("BEGIN") {
+                        AllowAccess()
+                    }
+                    .foregroundColor(Color.white )
+                    .background(Color(red: 80 / 255, green: 1 / 255, blue: 142 / 255))
+                    .cornerRadius(25)
+                    Spacer()
                     
-                
-                        VStack {
-                            Spacer()
-                            NavigationLink("BEGIN") {
-                                AllowAccess()
-                                                    }
-                                    .foregroundColor(Color.white )
-                                    .background(Color(red: 80 / 255, green: 1 / 255, blue: 142 / 255))
-                                    .cornerRadius(25)
-                Spacer()
-                            
-                                            
-                        }
+                    
                 }
-                Spacer()
             }
-                
-            }
+            Spacer()
         }
+    }
+}
 
 struct WelcomePage_Previews: PreviewProvider {
             static var previews: some View {
@@ -87,7 +86,7 @@ struct AllowAccess: View {
                     .cornerRadius(25)
                     Spacer()
                     NavigationLink("ALLOW") {
-                        HeartrateSensor()
+                        OK()
                     }
                     .font(.custom(
                         "SecularOne",
@@ -128,7 +127,7 @@ struct AllowAccess2: View {
                 Spacer()
                 HStack{
                     NavigationLink("DON'T ALLOW") {
-                        WelcomePage()
+                        WelcomePageReturn()
                     }
                     .font(.custom(
                         "Baloo Tammudu",
@@ -140,7 +139,7 @@ struct AllowAccess2: View {
                     .background(Color(red: 80 / 255, green: 1 / 255, blue: 142 / 255))
                     .cornerRadius(25)
                     NavigationLink("OK") {
-                        HeartrateSensor()
+                        OK()
                     }
                     .foregroundColor(Color.white )
                     .background(Color(red: 80 / 255, green: 1 / 255, blue: 142 / 255))
@@ -157,41 +156,122 @@ struct AllowAccess2_Previews: PreviewProvider {
     }
 }
 
-struct HeartrateSensor: View {
-    @State var heartRate: Double = 0
+struct WelcomePageReturn: View {
     
     var body: some View {
         VStack {
-            Text("Heart Rate: \(heartRate)")
-                .font(.title)
-            
+            NavigationStack {
+                
+                VStack {
+                    Image("SleepGuardian")
+                        .imageScale(.large)
+                        .foregroundColor(.purple)
+                    
+                    Spacer()
+                    Text("Welcome To Sleep Guardian")
+                        .font(.custom(
+                            "SecularOne",
+                            fixedSize: 13))
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                }
+                
+                
+                VStack {
+                    Spacer()
+                    NavigationLink("BEGIN") {
+                        AllowAccess()
+                    }
+                    .foregroundColor(Color.white )
+                    .background(Color(red: 80 / 255, green: 1 / 255, blue: 142 / 255))
+                    .cornerRadius(25)
+                    Spacer()
+                }
+            }
+            Spacer()
+        }
+    }
+}
+
+struct WelcomePageReturn_Previews: PreviewProvider {
+            static var previews: some View {
+                WelcomePageReturn()
+            }
+        }
+struct OK: View{
+    var body: some View {
+        Text("76")
+    }
+    }
+
+struct OK_Previews: PreviewProvider {
+            static var previews: some View {
+                OK()
+            }
+        }
+
+
+struct HeartrateSensor: View{
+    @State  var heartRate: Double = 0.0
+    @State  var isAuthorized = false
+    var body: some View {
+        VStack {
+            Text("Heart Rate: \(Int(heartRate))")
+                .padding()
             Button(action: {
-                self.getHeartRate()
+                authorizeHealthKit()
             }) {
-                Text("Get Heart Rate")
-                    .font(.headline)
+                Text("Request Authorization")
+            }
+            .padding()
+            .disabled(isAuthorized)
+        }
+    }
+    func authorizeHealthKit() {
+        let healthStore = HKHealthStore()
+        let readTypes: Set<HKObjectType> = [HKObjectType.quantityType(forIdentifier: .heartRate)!]
+        healthStore.requestAuthorization(toShare: nil, read: readTypes) { (success, error) in
+            if success {
+                isAuthorized = true
+                startHeartRateReading()
+            } else {
+                // Handle error
             }
         }
     }
-    
-    func getHeartRate() {
-        let healthStore = HKHealthStore()
-        let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
-        let date = Date()
-        let predicate = HKQuery.predicateForSamples(withStart: date.addingTimeInterval(-60), end: date, options: .strictEndDate)
-        let query = HKStatisticsQuery(quantityType: heartRateType, quantitySamplePredicate: predicate, options: .discreteAverage) { _, result, _ in
-            guard let result = result, let quantity = result.averageQuantity() else {
+    func startHeartRateReading() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)!
+        let query = HKObserverQuery(sampleType: heartRateType, predicate: nil) { (query, completionHandler, error) in
+            if error != nil {
+                // Handle error
                 return
             }
-            self.heartRate = quantity.doubleValue(for: HKUnit(from: "count/min"))
+            self.readHeartRate()
         }
+        let healthStore = HKHealthStore()
+        healthStore.execute(query)
+    }
+    func readHeartRate() {
+        let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)!
+        let datePredicate = HKQuery.predicateForSamples(withStart: Date.distantPast, end: Date(), options: .strictEndDate)
+        let query = HKSampleQuery(sampleType: heartRateType, predicate: datePredicate, limit: 1, sortDescriptors: nil) { (query, samples, error) in
+            if let samples = samples as? [HKQuantitySample] {
+                if let sample = samples.first {
+            //        let heartRateUnit = HKUnit(from: count/min )
+               //     self.heartRate = sample.quantity.doubleValue(for: heartRateUnit)
+                }
+            }
+        }
+        let healthStore = HKHealthStore()
         healthStore.execute(query)
     }
 }
 
-
 struct HeartrateSensor_Previews: PreviewProvider {
-    static var previews: some View {
+    static var previews: some View{
         HeartrateSensor()
     }
 }
+
